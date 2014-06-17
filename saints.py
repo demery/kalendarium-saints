@@ -16,7 +16,8 @@ name_fix_re = re.compile("\s+\([0-9]+\)$")
 alt_name_re = re.compile("^(.+)\s+\((.+)\)$")
 
 
-BASE_URL = "http://localhost:8080"
+saints_url = os.environ.get('SAINTS_URL')
+BASE_URL = saints_url if saints_url else "http://localhost:8080"
 CONTEXT = "%s/ns/context.json" % BASE_URL
 
 app = Flask(__name__)
