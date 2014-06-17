@@ -5,6 +5,7 @@ import os, re, json
 
 from flask import Flask
 from flask import jsonify, request
+from flask.ext.cors import cross_origin
 
 app = Flask(__name__)
 
@@ -107,6 +108,7 @@ def load(path):
 saints, primary_lookup, secondary_lookup = load(path=os.path.join(os.path.dirname(__file__),"saints.tsv"))
 
 @app.route("/api")
+@cross_origin()
 def index():
 	q = request.args.get('q','')
 	q = json.loads(q)
