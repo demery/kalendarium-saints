@@ -120,6 +120,32 @@ class Date(object):
 		# Date --> time:DateTimeDescription
 		return {"@type":"Date", "day":self.day, "month":self.month}
 
+class LiturgicalDate(Date):
+	def __init__(self, day, month, stuff={}):
+		super(LiturgicalDate,self).__init__(day, month)
+		self.stuff = stuff
+
+	def to_dict(self):
+		return dict(super(LiturgicalDate,self).to_dict(), **self.stuff)
+
+class DateLookup(object):
+	def __init__(self, date_array):
+		self.indices = []
+		self.db = []
+		for d in date_array:
+			day = int(d.pop("day"))
+			month = int(d.pop("month"))
+			date = LiturgicalDate(day, month, d)
+			self.indices.append(date.to_string())
+			self.db.append(date)
+		# print self.indices
+
+	def get(self,day,month):
+		ldate = LiturgicalDate(day,month)
+		index = self.indices.index(LiturgicalDate(day,month).to_string())
+		print "index is %d" % index
+		if index >= 0:
+			return self.db[index]
 
 def load(path):
 	# parse the grotefend data-file:
@@ -164,11 +190,15 @@ def load(path):
 				secondary_lookup[date.to_string()].add(saint_name)
 	return (saints, primary_lookup, secondary_lookup)
 
+def load_calendar(path):
+	return DateLookup(json.load(open(path,'r')))
+
 # start the app
 #app = App()
 
 # load the data
 saints, primary_lookup, secondary_lookup = load(path=os.path.join(os.path.dirname(__file__),"saints.tsv"))
+date_lookup = load_calendar(path=os.path.join(os.path.dirname(__file__), "calendar.json"))
 
 @app.route("/api/date/<int:month>/<int:day>")
 @cross_origin()
@@ -179,6 +209,7 @@ def by_date(month, day):
 	date = date_obj.to_string()
 	saint_dict = {"@context" : CONTEXT}
 	saint_dict["@id"] = "%s/%s/%s/%s" % (BASE_URL, "api/date", month, day)
+	saint_dict.update(date_lookup.get(day,month).to_dict())
 
 	saint_dict["primary_saints"] = []
 	saint_dict["secondary_saints"] = []
