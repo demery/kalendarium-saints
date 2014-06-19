@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os, re, json
+import datetime
 from flask import Flask
 from flask import jsonify, request
 from flask.ext.cors import cross_origin
@@ -163,9 +164,6 @@ def load(path):
 				secondary_lookup[date.to_string()].add(saint_name)
 	return (saints, primary_lookup, secondary_lookup)
 
-# load the data
-saints, primary_lookup, secondary_lookup = load(path=os.path.join(os.path.dirname(__file__),"saints.tsv"))
-
 # CALENDAR
 class LiturgicalDate(Date):
 	def __init__(self, day, month, stuff={}):
@@ -187,12 +185,14 @@ class DateLookup(object):
 			self.db.append(date)
 		# print self.indices
 
-	def get(self,day,month):
+	def get(self,day,month,offset=0):
 		ldate = LiturgicalDate(day,month)
-		index = self.indices.index(LiturgicalDate(day,month).to_string())
-		print "index is %d" % index
-		if index >= 0:
-			return self.db[index]
+		try:
+			index = self.indices.index(LiturgicalDate(day,month).to_string())
+			if index >= 0:
+				return self.db[index + offset]
+		except ValueError:
+			print "BAD date: %s" % ldate.to_string()
 
 def load_calendar(path):
 	return DateLookup(json.load(open(path,'r')))
@@ -200,19 +200,23 @@ def load_calendar(path):
 # start the app
 #app = App()
 
+# SETUP
+# load the data
+saints, primary_lookup, secondary_lookup = load(path=os.path.join(os.path.dirname(__file__),"saints.tsv"))
 # load the calendar
 date_lookup = load_calendar(path=os.path.join(os.path.dirname(__file__), "calendar.json"))
 
-@app.route("/api/date/<int:month>/<int:day>")
-@cross_origin()
-def by_date(month, day):
-	#  /api/date/:MONTH/:DAY
-
-	date_obj = Date(day, month)
+# METHODS
+def date_with_saints(month,day,offset=0):
+	"""
+	For the given month, day, and offset, return a dict with the litrugical
+	date and associated saints.
+	"""
+	date_obj = date_lookup.get(day,month,offset=offset)
 	date = date_obj.to_string()
-	saint_dict = {"@context" : CONTEXT}
+	saint_dict = dict()
 	saint_dict["@id"] = "%s/%s/%s/%s" % (BASE_URL, "api/date", month, day)
-	saint_dict.update(date_lookup.get(day,month).to_dict())
+	saint_dict.update(date_obj.to_dict())
 
 	saint_dict["primary_saints"] = []
 	saint_dict["secondary_saints"] = []
@@ -230,6 +234,42 @@ def by_date(month, day):
 		del saint_dict["secondary_saints"]
 	else:
 		saint_dict["primary_saints"].sort()
+	return saint_dict
+
+# ROUTES
+@app.route("/api/from/<int:from_month>/<int:from_day>/to/<int:to_month>/<int:to_day>")
+@cross_origin()
+def by_date_range(from_month,from_day,to_month,to_day):
+	# /api/from/:FROM_MONTH/:FROM_DAY/to/:TO_MONTH/:TO_DAY
+	from_date = datetime.date(1900,from_month,from_day)
+	to_date = datetime.date(1900,to_month,to_day)
+	delta = to_date - from_date
+	return by_start_date_and_count(from_month, from_day, (delta.days + 1))
+
+
+@app.route("/api/dates/<int:month>/<int:day>/", defaults={"count": 1})
+@app.route("/api/dates/<int:month>/<int:day>/count/<int:count>")
+@cross_origin()
+def by_start_date_and_count(month, day, count):
+	# /api/dates/:MONTH/:DAY/count/:COUNT
+	date_obj = Date(day,month)
+	date = date_obj.to_string()
+	dates_dict = { "@context" : CONTEXT }
+	dates_dict["@id"] = "%s/%s/%s/%s/%s/%s" % (BASE_URL, "api/dates", month, day, "count", count)
+	dates_dict["@type"] = "DateRange"
+	dates_dict["dates"] = []
+	for didx in range(count):
+		saints = date_with_saints(month,day,offset=didx)
+		if saints:
+			dates_dict["dates"].append(saints)
+	return json.dumps(dates_dict, indent=4, sort_keys=True)
+
+@app.route("/api/date/<int:month>/<int:day>")
+@cross_origin()
+def by_date(month, day):
+	#  /api/date/:MONTH/:DAY
+	saint_dict = date_with_saints(month,day)
+	saint_dict["@context"] = CONTEXT
 	return json.dumps(saint_dict, indent=4, sort_keys=True)
 
 @app.route("/api/saint/<int:idn>")
