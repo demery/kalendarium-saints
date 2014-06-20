@@ -167,6 +167,29 @@ def load(path):
 # CALENDAR
 class LiturgicalDate(Date):
 	def __init__(self, day, month, stuff={}):
+		"""
+
+		Create a new LiturgicalDate with day, month, and stuff (i.e.,
+		the dominicalLetter, goldenNumber, and romanDay). stuff should
+		be a dict like this:
+
+			  {
+			    "dominicalLetter": "c",
+			    "goldenNumber": {
+			      "roman": "xi",
+			      "arabic": 11
+			    },
+			    "romanDay": {
+			      "kni": "nones",
+			      "roman": "iii",
+			      "arabic": 3
+			    }
+			  },
+
+		Class object takes day, month, stuff args to maintain consistency with
+		parent Date class ( Date(day,month) ).
+
+		"""
 		super(LiturgicalDate,self).__init__(day, month)
 		self.stuff = stuff
 
@@ -174,10 +197,38 @@ class LiturgicalDate(Date):
 		return dict(super(LiturgicalDate,self).to_dict(), **self.stuff)
 
 class DateLookup(object):
+	"""
+
+	DateLookup is a database of date information for each of the days in the
+	year. The input array is a series of dicts:
+
+		[
+		  {
+		    "day": "01",
+		    "month": "01",
+		    "dominicalLetter": "A",
+		    "goldenNumber": {"roman": "iii", "arabic": 3 },
+		    "romanDay": {"kni": "kalends"}
+		  },
+		  {
+		    "day": "02",
+		    "month": "01",
+		    "dominicalLetter": "b",
+		    "romanDay": {"kni": "nones", "roman": "iiii", "arabic": 4
+		    }
+		  },
+		  // ...
+		]
+
+	"""
 	def __init__(self, date_array):
+		# array for fast-lookup of date's index
 		self.indices = []
+		# parallel array that holds all the LiturgicalDate objects
 		self.db = []
 		for d in date_array:
+			# pop off day, month so that d has content expected by
+			# LiturgicalDate class object.
 			day = int(d.pop("day"))
 			month = int(d.pop("month"))
 			date = LiturgicalDate(day, month, d)
@@ -186,6 +237,10 @@ class DateLookup(object):
 		# print self.indices
 
 	def get(self,day,month,offset=0):
+		"""
+		Return the LiturgicalDate for day and month plus the offset value; an
+		offset of 0 (default) returns the LiturgicalDate for day/month.
+		"""
 		ldate = LiturgicalDate(day,month)
 		try:
 			index = self.indices.index(ldate.to_string())
