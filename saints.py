@@ -188,7 +188,7 @@ class DateLookup(object):
 	def get(self,day,month,offset=0):
 		ldate = LiturgicalDate(day,month)
 		try:
-			index = self.indices.index(LiturgicalDate(day,month).to_string())
+			index = self.indices.index(ldate.to_string())
 			if index >= 0:
 				return self.db[index + offset]
 		except ValueError:
